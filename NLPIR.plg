@@ -1,0 +1,34 @@
+<html>
+<body>
+<pre>
+<h1>Build Log</h1>
+<h3>
+--------------------Configuration: NLPIR - Win32 Debug--------------------
+</h3>
+<h3>Command Lines</h3>
+Creating temporary file "C:\Users\WP\AppData\Local\Temp\RSPD2F2.tmp" with contents
+[
+/nologo /MLd /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /Fp"Debug/NLPIR.pch" /Yu"stdafx.h" /Fo"Debug/" /Fd"Debug/" /FD /GZ /c 
+"D:\Program Files\VC6.0 ÂÌÉ«°æ\MyProjects\NLPIR\NLPIR.cpp"
+]
+Creating command line "cl.exe @C:\Users\WP\AppData\Local\Temp\RSPD2F2.tmp" 
+Creating temporary file "C:\Users\WP\AppData\Local\Temp\RSPD2F3.tmp" with contents
+[
+kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /incremental:yes /pdb:"Debug/NLPIR.pdb" /debug /machine:I386 /out:"Debug/NLPIR.exe" /pdbtype:sept 
+".\Debug\NLPIR.obj"
+".\Debug\StdAfx.obj"
+]
+Creating command line "link.exe @C:\Users\WP\AppData\Local\Temp\RSPD2F3.tmp"
+<h3>Output Window</h3>
+Compiling...
+NLPIR.cpp
+Linking...
+   Creating library Debug/NLPIR.lib and object Debug/NLPIR.exp
+
+
+
+<h3>Results</h3>
+NLPIR.exe - 0 error(s), 0 warning(s)
+</pre>
+</body>
+</html>
