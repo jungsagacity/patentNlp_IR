@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "Postgre/postgre.h"
+#include "TermFreqDocs.h"
 #include <iostream>
 #include <ctime>
 #include <fstream>
@@ -14,7 +15,7 @@
 //
 int main(int argc, char* argv[])
 {
-	//Sample1: Sentence or paragraph lexical analysis with only one result
+	
 	
 	const char * sResult;
 	if(!NLPIR_Init()) 
@@ -23,19 +24,20 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
-	ofstream log;
-	log.open("F:\\VS8_Projects\\NLPIR\\log1.txt");
+	//ofstream log;
+	//log.open("F:\\VS8_Projects\\NLPIR\\log1.txt");
 
 	clock_t start,end;
 
-	
+	map<string,string> patent  ;//存储IPC号和 标题+摘要字符串对
 	vector<string> splitRes;//存储每一个字符串分词后的结果
 	vector<string> stopWordFlags;//停用词集合标志			
 	map<string,int> mpSplitResult;	//对每一个分词进行文档内的词频统计	
-	vector<pair<string,string>> patent  ;//存储IPC号和 标题+摘要字符串对
+	map<string,struct freDocAttr> resMap;
+	TermFreqDocs t;
 	CPostgre pg;
 
-	pg.generateStopWordFlags(stopWordFlags);//生成停用词集合
+	t.generateStopWordFlags(stopWordFlags);//生成停用词集合
 
 	start = clock();//程序执行初始时间标记
 	
@@ -46,18 +48,52 @@ int main(int argc, char* argv[])
 	string hostsubclassterm = "dbname=subclass_term user=postgres password=123456 host=localhost port=5432";
 	PGconn * connsubclassterm = pg.connectDatabase(hostsubclassterm.c_str()); //连接subclass_term数据库
 	
-	char * sql = "select ic1,ti,ab from chinapatent where ad >= '2010-01-01 00:00:00'::timestamp without time zone AND ad <= '2010-12-31 00:00:00'::timestamp without time zone \
-				  and ic1 like 'A01B%' ; ";
+	char * sql = "select ic1,ti,ab from chinapatent where ad >= '2000-01-01 00:00:00'::timestamp without time zone AND ad <= '2010-12-31 00:00:00'::timestamp without time zone \
+				  and pa like '%华为%'; ";
 
-	PGresult *respg = PQexec(conn,sql);
+	string sqlTemp = sql;
+	pg.GBKToUTF8(sqlTemp);	
+
+	PGresult *respg = PQexec(conn,sqlTemp.c_str());
 
 	end = clock();
-	log<<"数据库查询耗时："<<1000*(end-start)/CLOCKS_PER_SEC<<" s\n";
+	cout<<"满足专利数目："<<PQntuples(respg)<<"\n";
+	cout<<"数据库查询耗时："<<1000*(end-start)/CLOCKS_PER_SEC<<" ms\n";
+	
+	//打开存放结果文件
+	int lineMaxSize = 50;
+	ifstream file;
+	const char * fileName = "log2.txt";
+	file.open(fileName);	
+	char *line = new char[lineMaxSize];
+	struct freDocAttr fda;
+	
+	//map<string,struct freDocAttr> resMap;
+	vector<string> resVec;
+	//1、读取存储结果的文件
+	while(file.getline(line,lineMaxSize))
+	{
+		string sline = line;
+		if(sline.size() == 0) break;
+		t.split(sline,",",resVec,stopWordFlags);
+		
+		fda.freq = atoi(resVec.at(1).c_str());
+		fda.docs = atoi(resVec.at(2).c_str());
+		fda.attr = atoi(resVec.at(3).c_str());
+
+		resMap.insert( make_pair(resVec.at(0), fda) );
+
+		resVec.clear();
+	}
+	file.close();	
+
+	//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 
 	start = clock();//程序执行初始时间标记
 	if( PQresultStatus( respg ) != PGRES_TUPLES_OK)
 	{
-		log<<PQerrorMessage(conn);		
+		cout<<PQerrorMessage(conn);		
 		PQclear(respg);		
 		
 		return false;
@@ -73,73 +109,83 @@ int main(int argc, char* argv[])
 		patentTemp.second = PQgetvalue(respg,i,1);
 		patentTemp.second +=  PQgetvalue(respg,i,2);
 	
-		pg.UTF8ToGBK(patentTemp.second);		
-		patent.push_back(patentTemp);//获取满足条件的元组的第一列所有结果，ipc	
-
+		t.UTF8ToGBK(patentTemp.second);		
+		patent.insert(patentTemp);//获取满足条件的元组的第一列所有结果，ipc	
 		
-		if(i!=0 && i%100 == 0)//每获取10条专利就开始进行分词和存储，从而提高分词和存储的效率。经过试验10为最佳的长度
+		
+		if(i!=0 && i%10 == 0)//每获取10条专利就开始进行分词和存储，从而提高分词和存储的效率。经过试验10为最佳的长度
 		{
-			//log<<i<<"\n";
+			map<string, string>::iterator patent_begin = patent.begin();
 
-
-			vector<pair<string,string>>::iterator patent_begin = patent.begin();
-			clock_t start1,end1;
-			start1 = clock();
 			while( patent_begin != patent.end())
 			{
 				string strTemp;
-								
-				
 				sResult = NLPIR_ParagraphProcess(patent_begin->second.c_str(),1);//分词后结果，为一个字符串形式	
 				strTemp = sResult;//将分词结果char * 转换为 string 进行处理
-				//log<<strTemp<<end;
-				
-				
-				//log<<"分词耗时: \t"<<1000*(end1-start1)/CLOCKS_PER_SEC<<" ms\n";
+								
+				t.split(strTemp," ",splitRes,stopWordFlags);//对分词结果字符串进行切分，并过滤掉停用词，切分的标志是空格字符
 
-				
-				pg.split(strTemp," ",splitRes,stopWordFlags);//对分词结果字符串进行切分，并过滤掉停用词，切分的标志是空格字符
-				
-
-				
 				vector<string>::iterator splitRes_begin = splitRes.begin(),splitRes_end = splitRes.end();				
-				pg.getTermFre(splitRes_begin,splitRes_end,mpSplitResult);//对分词集合进行文档内的词频统计
+				t.getTermFre(splitRes_begin,splitRes_end,mpSplitResult);//对分词集合进行文档内的词频统计
 				
 
-				string tablename = patent_begin->first.substr(0,4);//取IPC的前4个字符，作为主题表名
-				//cout<<"mpSplitResult.size =  "<<mpSplitResult.size()<<endl;
+				string tablename = patent_begin->first.substr(0,4);//取IPC的前4个字符，作为主题表名	
 				
-				clock_t start3,end3;
-				start3 = clock();
-				map<string,int>::iterator mp_begin = mpSplitResult.begin(),mp_end = mpSplitResult.end();
-				if( !pg.insertTerm(tablename,mp_begin,mp_end,connsubclassterm))
-				{
-					//log<<"pg.insertTerm 执行失败\n";
-					break;
-				}
-				end3 = clock();	
-				log<<"每条专利插入数据库耗时: "<<1000*(end3-start3)/CLOCKS_PER_SEC<<" ms\n";
-				
-				
+				map<string,int>::iterator mp_begin = mpSplitResult.begin();
+				map<string,int>::iterator mp_end = mpSplitResult.end();
+				t.getTermFreDocs(mp_begin, mp_end,resMap);
+
 				splitRes.clear();//清空每条专利的分词
 				mpSplitResult.clear();//清空每条专利的词频以及词频统计				
 				
 				patent_begin++;
 			}
 			patent.clear();//每处理10条专利就对向量集合进行清空
-			end1 = clock();
-			log<<"每10条分词耗时: \t"<<1000*(end1-start1)/CLOCKS_PER_SEC<<" ms\n";
 			
-			//cout<<"patent.size = "<<patent.size()<<endl;
 			
 		}
 	}	
 
 	
 	NLPIR_Exit();
-	end = clock();
 
-	log<<"总耗时耗时: "<<1000*(end-start)/CLOCKS_PER_SEC<<" ms\n";
+
+	//3、将处理后的结果覆盖掉源文件；
+	ofstream ofile;
+	ofile.open(fileName,ios::trunc);
+	
+	map<string,struct freDocAttr>::iterator it = resMap.begin();
+	while(it != resMap.end())
+	{
+		stringstream sTemp;	
+
+		ofile<<it->first<<",";
+
+		sTemp<<it->second.freq;
+		ofile<<sTemp.str()<<",";
+		sTemp.str("");
+		
+
+		sTemp<<it->second.docs;
+		ofile<<sTemp.str()<<",";
+		sTemp.str("");
+
+		sTemp<<it->second.attr;
+		ofile<<sTemp.str()<<"\n";
+		sTemp.str("");
+
+		it++;
+	}
+	
+	ofile.close();
+
+	//++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+	end = clock();
+	cout<<"总耗时耗时: "<<1000*(end-start)/CLOCKS_PER_SEC<<" ms\n";
+
+
+	
 	return 0;
 	
 }
